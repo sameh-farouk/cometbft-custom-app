@@ -1,0 +1,78 @@
+version: '3'
+
+services:
+  node0:
+    container_name: node0
+    image: "cometbft/localnode"
+    ports:
+      - "26657:26657"
+      # - "26670:26660"
+    environment:
+      - ID=0
+      - LOG=${LOG:-cometbft.log}
+    volumes:
+      - ./build:/cometbft:Z
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.2
+    cap_add:
+      - NET_ADMIN
+
+  node1:
+    container_name: node1
+    image: "cometbft/localnode"
+    ports:
+      - "26660:26657"
+      # - "26671:26660"
+    environment:
+      - ID=1
+      - LOG=${LOG:-cometbft.log}
+    volumes:
+      - ./build:/cometbft:Z
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.3
+    cap_add:
+      - NET_ADMIN
+
+  node2:
+    container_name: node2
+    image: "cometbft/localnode"
+    environment:
+      - ID=2
+      - LOG=${LOG:-cometbft.log}
+    ports:
+      - "26662:26657"
+      # - "26672:26660"
+    volumes:
+      - ./build:/cometbft:Z
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.4
+    cap_add:
+      - NET_ADMIN
+
+  node3:
+    container_name: node3
+    image: "cometbft/localnode"
+    environment:
+      - ID=3
+      - LOG=${LOG:-cometbft.log}
+    ports:
+      - "26664:26657"
+      # - "26673:26660"
+    volumes:
+      - ./build:/cometbft:Z
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.5
+    cap_add:
+      - NET_ADMIN
+
+networks:
+  localnet:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.167.0.0/16
