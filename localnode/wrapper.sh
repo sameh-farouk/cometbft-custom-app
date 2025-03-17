@@ -36,3 +36,5 @@ if [ -d "`dirname ${CMTHOME}/${LOG}`" ]; then
 else
   "$BINARY" "$@"
 fi
+
+chmod 777 -R /cometbft

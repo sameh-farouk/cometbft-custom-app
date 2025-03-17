@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"strconv"
 
 	abcitypes "github.com/cometbft/cometbft/abci/types"
 	"github.com/dgraph-io/badger/v4"
@@ -73,15 +74,28 @@ func (app *KVStoreApplication) FinalizeBlock(_ context.Context, req *abcitypes.F
 			log.Printf("Error: invalid transaction index %v", i)
 			txs[i] = &abcitypes.ExecTxResult{Code: code}
 		} else {
-			parts := bytes.SplitN(tx, []byte("="), 2)
-			key, value := parts[0], parts[1]
-			log.Printf("Adding key %s with value %s", key, value)
+			parts := bytes.SplitN(tx, []byte("="), 4)
+			src, dst, amount := parts[0], parts[1], parts[2]
+			log.Printf("Adding key %s with value %s", src, dst)
 
-			if err := app.onGoingBlock.Set(key, value); err != nil {
-				log.Panicf("Error writing to database, unable to execute tx: %v", err)
+			srcValue, dstValue := balanceMap[string(src)], balanceMap[string(dst)]
+
+			amountValue, err := strconv.ParseUint(string(amount), 10, 64)
+			if err != nil {
+				log.Panicf("Error parsing amount, unable to execute tx: %v", err)
 			}
 
-			log.Printf("Successfully added key %s with value %s", key, value)
+			srcValue -= amountValue
+			dstValue += amountValue
+
+			if err := app.onGoingBlock.Set(src, []byte(strconv.FormatUint(srcValue, 10))); err != nil {
+				log.Panicf("Error writing source key to database, unable to execute tx: %v", err)
+			}
+			if err := app.onGoingBlock.Set(dst, []byte(strconv.FormatUint(dstValue, 10))); err != nil {
+				log.Panicf("Error writing destination key to database, unable to execute tx: %v", err)
+			}
+
+			log.Printf("Successfully added key %s with value %s", src, dst)
 
 			// Add an event for the transaction execution.
 			// Multiple events can be emitted for a transaction, but we are adding only one event
@@ -91,12 +105,16 @@ func (app *KVStoreApplication) FinalizeBlock(_ context.Context, req *abcitypes.F
 					{
 						Type: "app",
 						Attributes: []abcitypes.EventAttribute{
-							{Key: "key", Value: string(key), Index: true},
-							{Key: "value", Value: string(value), Index: true},
+							{Key: "src", Value: string(src), Index: true},
+							{Key: "dst", Value: string(dst), Index: true},
+							{Key: "amount", Value: string(amount), Index: true},
 						},
 					},
 				},
 			}
+
+			balanceMap[string(src)] = srcValue
+			balanceMap[string(dst)] = dstValue
 		}
 	}
 
