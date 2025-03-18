@@ -6,18 +6,17 @@ import (
 	"log"
 	"strconv"
 
+	"github.com/cockroachdb/pebble"
 	abcitypes "github.com/cometbft/cometbft/abci/types"
-	"github.com/dgraph-io/badger/v4"
 )
 
 type KVStoreApplication struct {
-	db           *badger.DB
-	onGoingBlock *badger.Txn
+	db           *pebble.DB
 }
 
 var _ abcitypes.Application = (*KVStoreApplication)(nil)
 
-func NewKVStoreApplication(db *badger.DB) *KVStoreApplication {
+func NewKVStoreApplication(db *pebble.DB) *KVStoreApplication {
 	return &KVStoreApplication{db: db}
 }
 func (app *KVStoreApplication) Info(_ context.Context, info *abcitypes.InfoRequest) (*abcitypes.InfoResponse, error) {
@@ -27,25 +26,17 @@ func (app *KVStoreApplication) Info(_ context.Context, info *abcitypes.InfoReque
 func (app *KVStoreApplication) Query(_ context.Context, req *abcitypes.QueryRequest) (*abcitypes.QueryResponse, error) {
 	resp := abcitypes.QueryResponse{Key: req.Data}
 
-	dbErr := app.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(req.Data)
-		if err != nil {
-			if !errors.Is(err, badger.ErrKeyNotFound) {
-				return err
-			}
-			resp.Log = "key does not exist"
-			return nil
+	val, closer, err := app.db.Get(req.Data)
+	if err != nil {
+		if !errors.Is(err, pebble.ErrNotFound) {
+			log.Panicf("Error reading database, unable to execute query: %e", err)
 		}
-
-		return item.Value(func(val []byte) error {
-			resp.Log = "exists"
-			resp.Value = val
-			return nil
-		})
-	})
-	if dbErr != nil {
-		log.Panicf("Error reading database, unable to execute query: %v", dbErr)
+		resp.Log = "key does not exist"
+		return &resp, nil
 	}
+	resp.Log = "exists"
+	resp.Value = val
+	closer.Close()
 	return &resp, nil
 }
 func (app *KVStoreApplication) CheckTx(_ context.Context, check *abcitypes.CheckTxRequest) (*abcitypes.CheckTxResponse, error) {
@@ -67,7 +58,6 @@ func (app *KVStoreApplication) ProcessProposal(_ context.Context, proposal *abci
 func (app *KVStoreApplication) FinalizeBlock(_ context.Context, req *abcitypes.FinalizeBlockRequest) (*abcitypes.FinalizeBlockResponse, error) {
 	var txs = make([]*abcitypes.ExecTxResult, len(req.Txs))
 
-	app.onGoingBlock = app.db.NewTransaction(true)
 	for i, tx := range req.Txs {
 		if code := app.isValid(tx); code != 0 {
 			log.Printf("Error: invalid transaction index %v", i)
@@ -91,10 +81,10 @@ func (app *KVStoreApplication) FinalizeBlock(_ context.Context, req *abcitypes.F
 				srcValue -= amountValue
 				dstValue += amountValue
 
-				if err := app.onGoingBlock.Set([]byte(src), []byte(amount)); err != nil {
+				if err := app.db.Set([]byte(src), []byte(amount),nil); err != nil{
 					log.Panicf("Error writing source key to database, unable to execute tx: %v", err)
 				}
-				if err := app.onGoingBlock.Set([]byte(dst), []byte(amount)); err != nil {
+				if err := app.db.Set([]byte(dst), []byte(amount),nil); err != nil{
 					log.Panicf("Error writing destination key to database, unable to execute tx: %v", err)
 				}
 				balanceMap[string(src)] = srcValue
@@ -137,7 +127,7 @@ func (app *KVStoreApplication) FinalizeBlock(_ context.Context, req *abcitypes.F
 }
 
 func (app KVStoreApplication) Commit(_ context.Context, commit *abcitypes.CommitRequest) (*abcitypes.CommitResponse, error) {
-	return &abcitypes.CommitResponse{}, app.onGoingBlock.Commit()
+	return &abcitypes.CommitResponse{}, nil
 }
 
 func (app *KVStoreApplication) ListSnapshots(_ context.Context, snapshots *abcitypes.ListSnapshotsRequest) (*abcitypes.ListSnapshotsResponse, error) {
