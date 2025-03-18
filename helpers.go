@@ -8,14 +8,18 @@ import (
 	"strconv"
 )
 
-type Transaction struct {
+type Transfer struct {
 	Sender    string `json:"sender"`
 	Dest      string `json:"dest"`
 	Amount    string `json:"amount"`
 	Signature string `json:"signature"`
 }
 
-func (t *Transaction) Challenge() []byte {
+type Transaction struct {
+	Transfers []Transfer `json:"transfers"`
+}
+
+func (t *Transfer) Challenge() []byte {
 	challenge := []byte{}
 	challenge = append(challenge, []byte(t.Sender)...)
 	challenge = append(challenge, []byte(t.Dest)...)
@@ -24,33 +28,23 @@ func (t *Transaction) Challenge() []byte {
 }
 
 func (t *Transaction) FromBytes(data []byte) error {
-	parts := bytes.Split(data, []byte("="))
-	if len(parts) != 4 {
-		return errors.New("invalid transaction data")
+	transfersData := bytes.Split(data, []byte(":"))
+	for _, transferData := range transfersData {
+		parts := bytes.Split(transferData, []byte("="))
+		if len(parts) != 4 {
+			return errors.New("invalid transaction data")
+		}
+
+		transfer := Transfer{
+			Sender:    string(parts[0]),
+			Dest:      string(parts[1]),
+			Amount:    string(parts[2]),
+			Signature: string(parts[3]),
+		}
+
+		t.Transfers = append(t.Transfers, transfer)
 	}
-
-	t.Sender = string(parts[0])
-	t.Dest = string(parts[1])
-	t.Amount = string(parts[2])
-	t.Signature = string(parts[3])
-
 	return nil
-}
-
-func bytesToUint64(b []byte) uint64 {
-	var num uint64
-	for i := 0; i < len(b); i++ {
-		num |= uint64(b[i]) << (8 * i)
-	}
-	return num
-}
-
-func uint64ToBytes(num uint64) []byte {
-	bytes := make([]byte, 8)
-	for i := uint(0); i < 8; i++ {
-		bytes[i] = byte((num >> (i * 8)) & 0xff)
-	}
-	return bytes
 }
 
 var keyMap = map[string]string{
@@ -68,42 +62,41 @@ var balanceMap = map[string]uint64{
 }
 
 func (app *KVStoreApplication) isValid(tx []byte) uint32 {
-	parts := bytes.Split(tx, []byte("="))
-	if len(parts) != 4 {
-		return 1
-	}
 
-	var t Transaction
-	if err := t.FromBytes(tx); err != nil {
+	var transaction Transaction
+	if err := transaction.FromBytes(tx); err != nil {
 		return 2
 	}
-	if _, ok := keyMap[t.Sender]; !ok {
-		return 3
-	}
 
-	if _, ok := keyMap[t.Dest]; !ok {
-		return 4
-	}
-	amount, err := strconv.ParseUint(t.Amount, 10, 64)
-	if err != nil {
-		return 8
-	}
-	if balanceMap[t.Sender] < amount {
-		return 5
-	}
+	for _, transfer := range transaction.Transfers {
 
-	pubBytes, err := hex.DecodeString(keyMap[t.Sender])
-	if err != nil {
-		return 6
-	}
-	pubKey := ed25519.PublicKey(pubBytes)
-	signatureBytes, err := hex.DecodeString(t.Signature)
-	if err != nil {
-		return 9
-	}
-	if !ed25519.Verify(pubKey, t.Challenge(), signatureBytes) {
-		return 7
-	}
+		if _, ok := keyMap[transfer.Sender]; !ok {
+			return 3
+		}
 
+		if _, ok := keyMap[transfer.Dest]; !ok {
+			return 4
+		}
+		amount, err := strconv.ParseUint(transfer.Amount, 10, 64)
+		if err != nil {
+			return 8
+		}
+		if balanceMap[transfer.Sender] < amount {
+			return 5
+		}
+
+		pubBytes, err := hex.DecodeString(keyMap[transfer.Sender])
+		if err != nil {
+			return 6
+		}
+		pubKey := ed25519.PublicKey(pubBytes)
+		signatureBytes, err := hex.DecodeString(transfer.Signature)
+		if err != nil {
+			return 9
+		}
+		if !ed25519.Verify(pubKey, transfer.Challenge(), signatureBytes) {
+			return 7
+		}
+	}
 	return 0
 }
