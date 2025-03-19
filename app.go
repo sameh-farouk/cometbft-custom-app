@@ -3,22 +3,24 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"strconv"
 
+	"test/db"
+
 	abcitypes "github.com/cometbft/cometbft/abci/types"
-	"github.com/dgraph-io/badger/v4"
 )
 
 type KVStoreApplication struct {
-	db           *badger.DB
-	onGoingBlock *badger.Txn
+	db           db.DB
+	onGoingBlock db.Transaction
 }
 
 var _ abcitypes.Application = (*KVStoreApplication)(nil)
 
-func NewKVStoreApplication(db *badger.DB) *KVStoreApplication {
-	return &KVStoreApplication{db: db}
+func NewKVStoreApplication(database db.DB) *KVStoreApplication {
+	return &KVStoreApplication{db: database}
 }
 func (app *KVStoreApplication) Info(_ context.Context, info *abcitypes.InfoRequest) (*abcitypes.InfoResponse, error) {
 	return &abcitypes.InfoResponse{}, nil
@@ -27,25 +29,17 @@ func (app *KVStoreApplication) Info(_ context.Context, info *abcitypes.InfoReque
 func (app *KVStoreApplication) Query(_ context.Context, req *abcitypes.QueryRequest) (*abcitypes.QueryResponse, error) {
 	resp := abcitypes.QueryResponse{Key: req.Data}
 
-	dbErr := app.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(req.Data)
-		if err != nil {
-			if !errors.Is(err, badger.ErrKeyNotFound) {
-				return err
-			}
+	value, err := app.db.Get(req.Data)
+	if err != nil {
+		if errors.Is(err, db.ErrKeyNotFound) {
 			resp.Log = "key does not exist"
-			return nil
+			return &resp, nil
 		}
-
-		return item.Value(func(val []byte) error {
-			resp.Log = "exists"
-			resp.Value = val
-			return nil
-		})
-	})
-	if dbErr != nil {
-		log.Panicf("Error reading database, unable to execute query: %v", dbErr)
+		log.Panicf("Error reading database, unable to execute query: %v", err)
 	}
+
+	resp.Log = "exists"
+	resp.Value = value
 	return &resp, nil
 }
 func (app *KVStoreApplication) CheckTx(_ context.Context, check *abcitypes.CheckTxRequest) (*abcitypes.CheckTxResponse, error) {
@@ -67,10 +61,15 @@ func (app *KVStoreApplication) ProcessProposal(_ context.Context, proposal *abci
 func (app *KVStoreApplication) FinalizeBlock(_ context.Context, req *abcitypes.FinalizeBlockRequest) (*abcitypes.FinalizeBlockResponse, error) {
 	var txs = make([]*abcitypes.ExecTxResult, len(req.Txs))
 
-	app.onGoingBlock = app.db.NewTransaction(true)
+	var err error
+	app.onGoingBlock, err = app.db.BeginTx()
+	if err != nil {
+		log.Panicf("Error beginning transaction: %v", err)
+	}
+
 	for i, tx := range req.Txs {
 		if code := app.isValid(tx); code != 0 {
-			log.Printf("Error: invalid transaction index %v", i)
+			fmt.Printf("Error: invalid transaction index %v", i)
 			txs[i] = &abcitypes.ExecTxResult{Code: code}
 		} else {
 			var transaction Transaction
@@ -79,7 +78,7 @@ func (app *KVStoreApplication) FinalizeBlock(_ context.Context, req *abcitypes.F
 			}
 			for _, transfer := range transaction.Transfers {
 				src, dst, amount := transfer.Sender, transfer.Dest, transfer.Amount
-				log.Printf("Adding key %s with value %s", src, dst)
+				fmt.Printf("Adding key %s with value %s", src, dst)
 
 				srcValue, dstValue := balanceMap[src], balanceMap[dst]
 
@@ -99,7 +98,7 @@ func (app *KVStoreApplication) FinalizeBlock(_ context.Context, req *abcitypes.F
 				}
 				balanceMap[string(src)] = srcValue
 				balanceMap[string(dst)] = dstValue
-				log.Printf("Successfully added key %s with value %s", src, dst)
+				fmt.Printf("Successfully added key %s with value %s", src, dst)
 
 				// Add an event for the transaction execution.
 				// Multiple events can be emitted for a transaction, but we are adding only one event

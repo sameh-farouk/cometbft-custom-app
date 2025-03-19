@@ -10,6 +10,7 @@ services:
     environment:
       - ID=0
       - LOG=${LOG:-cometbft.log}
+      - DB_TYPE=${DB_TYPE:-pebble}
     volumes:
       - ./build:/cometbft:Z
     networks:
@@ -27,6 +28,7 @@ services:
     environment:
       - ID=1
       - LOG=${LOG:-cometbft.log}
+      - DB_TYPE=${DB_TYPE:-pebble}
     volumes:
       - ./build:/cometbft:Z
     networks:
@@ -41,6 +43,7 @@ services:
     environment:
       - ID=2
       - LOG=${LOG:-cometbft.log}
+      - DB_TYPE=${DB_TYPE:-pebble}
     ports:
       - "26662:26657"
       # - "26672:26660"
@@ -58,6 +61,7 @@ services:
     environment:
       - ID=3
       - LOG=${LOG:-cometbft.log}
+      - DB_TYPE=${DB_TYPE:-pebble}
     ports:
       - "26664:26657"
       # - "26673:26660"
@@ -69,6 +73,7 @@ services:
     cap_add:
       - NET_ADMIN
 
+    # add more nodes here if needed
 networks:
   localnet:
     driver: bridge

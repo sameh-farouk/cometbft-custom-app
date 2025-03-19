@@ -9,6 +9,7 @@ import (
 )
 
 type Transfer struct {
+	Id 	  string `json:"id"`
 	Sender    string `json:"sender"`
 	Dest      string `json:"dest"`
 	Amount    string `json:"amount"`
@@ -21,6 +22,7 @@ type Transaction struct {
 
 func (t *Transfer) Challenge() []byte {
 	challenge := []byte{}
+	challenge = append(challenge, []byte(t.Id)...)
 	challenge = append(challenge, []byte(t.Sender)...)
 	challenge = append(challenge, []byte(t.Dest)...)
 	challenge = append(challenge, []byte(t.Amount)...)
@@ -31,15 +33,16 @@ func (t *Transaction) FromBytes(data []byte) error {
 	transfersData := bytes.Split(data, []byte(":"))
 	for _, transferData := range transfersData {
 		parts := bytes.Split(transferData, []byte("="))
-		if len(parts) != 4 {
+		if len(parts) != 5 {
 			return errors.New("invalid transaction data")
 		}
 
 		transfer := Transfer{
-			Sender:    string(parts[0]),
-			Dest:      string(parts[1]),
-			Amount:    string(parts[2]),
-			Signature: string(parts[3]),
+			Id:        string(parts[0]),
+			Sender:    string(parts[1]),
+			Dest:      string(parts[2]),
+			Amount:    string(parts[3]),
+			Signature: string(parts[4]),
 		}
 
 		t.Transfers = append(t.Transfers, transfer)
@@ -48,10 +51,10 @@ func (t *Transaction) FromBytes(data []byte) error {
 }
 
 var keyMap = map[string]string{
-	"1": "056d2c2869fb2c1504e80f35f6e85b6b4452c3436e327b4e35e6560ffa95a4c3",
-	"2": "4495c8a97d02eecf74e8f319388aee96a902cf7808128577d41d75f600cc2363",
-	"3": "61c29c7f938020a0b53358a1726c174f2aa5e8b7685a9ea8b9edb92f7e263ce0",
-	"4": "03b5a14fd977cb801e49a8f356b98f8243da388fba9e8653f7d68acbdbebb538",
+	"1": "c8af5ee74756bb934c9c3f93a3ffa4125c93d8a76619a1834f4511334d83d45f",
+	"2": "3382d764d3e30ce4c3aab066335a558e8f632d2aaf161e6aa5615c57176cfbca",
+	"3": "04c01c7d4f6c784504fce83f97968145e8aa6ca461ec19f3a685466152f17644",
+	"4": "d06a22ce4b7a59ceac3a898504901f41e27491ed3cc90e8ee46ac43e9305d61a",
 }
 
 var balanceMap = map[string]uint64{
@@ -62,14 +65,12 @@ var balanceMap = map[string]uint64{
 }
 
 func (app *KVStoreApplication) isValid(tx []byte) uint32 {
-
 	var transaction Transaction
 	if err := transaction.FromBytes(tx); err != nil {
 		return 2
 	}
 
 	for _, transfer := range transaction.Transfers {
-
 		if _, ok := keyMap[transfer.Sender]; !ok {
 			return 3
 		}

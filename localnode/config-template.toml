@@ -1,4 +1,6 @@
 [rpc]
 laddr = "tcp://0.0.0.0:26657"
+max_subscription_clients = 1000000
+max_subscriptions_per_client = 50000
 [instrumentation]
 prometheus = true
