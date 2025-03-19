@@ -9,6 +9,7 @@ import (
 )
 
 type Transfer struct {
+	Id 	  string `json:"id"`
 	Sender    string `json:"sender"`
 	Dest      string `json:"dest"`
 	Amount    string `json:"amount"`
@@ -21,6 +22,7 @@ type Transaction struct {
 
 func (t *Transfer) Challenge() []byte {
 	challenge := []byte{}
+	challenge = append(challenge, []byte(t.Id)...)
 	challenge = append(challenge, []byte(t.Sender)...)
 	challenge = append(challenge, []byte(t.Dest)...)
 	challenge = append(challenge, []byte(t.Amount)...)
@@ -31,15 +33,16 @@ func (t *Transaction) FromBytes(data []byte) error {
 	transfersData := bytes.Split(data, []byte(":"))
 	for _, transferData := range transfersData {
 		parts := bytes.Split(transferData, []byte("="))
-		if len(parts) != 4 {
+		if len(parts) != 5 {
 			return errors.New("invalid transaction data")
 		}
 
 		transfer := Transfer{
-			Sender:    string(parts[0]),
-			Dest:      string(parts[1]),
-			Amount:    string(parts[2]),
-			Signature: string(parts[3]),
+			Id:        string(parts[0]),
+			Sender:    string(parts[1]),
+			Dest:      string(parts[2]),
+			Amount:    string(parts[3]),
+			Signature: string(parts[4]),
 		}
 
 		t.Transfers = append(t.Transfers, transfer)
