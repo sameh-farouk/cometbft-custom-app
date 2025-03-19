@@ -14,18 +14,28 @@ import (
 	"github.com/cometbft/cometbft/privval"
 	"github.com/cometbft/cometbft/proxy"
 
+	"test/db"
+
 	cfg "github.com/cometbft/cometbft/config"
 	cmtflags "github.com/cometbft/cometbft/libs/cli/flags"
 	cmtlog "github.com/cometbft/cometbft/libs/log"
 	nm "github.com/cometbft/cometbft/node"
-	"github.com/dgraph-io/badger/v4"
 	"github.com/spf13/viper"
 )
 
-var homeDir string
+var (
+	homeDir     string
+	dbType      string
+	dbPath      string
+	tbAddresses string
+	tbClusterID uint
+)
 
 func init() {
 	flag.StringVar(&homeDir, "cmt-home", "", "Path to the CometBFT config directory (if empty, uses $HOME/.cometbft)")
+	flag.StringVar(&dbType, "db-type", "badger", "Database type: badger, pebble, or tigerbeetle")
+	flag.StringVar(&dbPath, "db-path", "", "Path to the database")
+	flag.StringVar(&tbAddresses, "tb-addresses", "3000", "TigerBeetle addresses (comma-separated)")
 }
 
 func main() {
@@ -33,6 +43,18 @@ func main() {
 	if homeDir == "" {
 		homeDir = os.ExpandEnv("$HOME/.cometbft")
 	}
+
+	// Set defaults from environment if not provided via flags
+	if os.Getenv("DB_TYPE") != "" && dbType == "badger" {
+		dbType = os.Getenv("DB_TYPE")
+	}
+	if os.Getenv("DB_PATH") != "" && dbPath == "" {
+		dbPath = os.Getenv("DB_PATH")
+	}
+	if os.Getenv("TB_ADDRESSES") != "" && tbAddresses == "3000" {
+		tbAddresses = os.Getenv("TB_ADDRESSES")
+	}
+
 	// get ID from environment variable
 	// nodeID := os.Getenv("ID")
 
@@ -50,19 +72,32 @@ func main() {
 	if err := config.ValidateBasic(); err != nil {
 		log.Fatalf("Invalid configuration data: %v", err)
 	}
-	dbPath := filepath.Join(homeDir, "badger")
-	db, err := badger.Open(badger.DefaultOptions(dbPath))
+
+	// Initialize the appropriate database
+	var database db.DB
+	var err error
+
+	if dbPath == "" {
+		dbPath = filepath.Join(homeDir, dbType)
+	}
+
+	switch dbType {
+	case "badger", "":
+		database, err = db.NewBadgerDB(dbPath)
+	case "pebble":
+		database, err = db.NewPebbleDB(dbPath)
+	case "tigerbeetle":
+		database, err = db.NewTigerBeetleDBFromMain(tbAddresses)
+	default:
+		log.Fatalf("Unknown database type: %s", dbType)
+	}
 
 	if err != nil {
-		log.Fatalf("Opening database: %v", err)
+		log.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			log.Printf("Closing database: %v", err)
-		}
-	}()
+	defer database.Close()
 
-	app := NewKVStoreApplication(db)
+	app := NewKVStoreApplication(database)
 
 	pv := privval.LoadFilePV(
 		config.PrivValidatorKeyFile(),

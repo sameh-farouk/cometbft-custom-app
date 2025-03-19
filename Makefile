@@ -3,6 +3,7 @@ PACKAGES=$(shell go list ./...)
 BUILDDIR?=$(CURDIR)/build
 OUTPUT?=$(BUILDDIR)/cometbft
 VALIDATORS_COUNT?=4
+DB_TYPE?=badger
 
 HTTPS_GIT := https://github.com/cometbft/cometbft.git
 CGO_ENABLED ?= 0
@@ -74,21 +75,21 @@ install-cometbft:
 build: clean
 	go mod tidy
 	mkdir -p build
-	CGO_ENABLED=$(CGO_ENABLED) go build $(BUILD_FLAGS) -tags '$(BUILD_TAGS)' -o $(OUTPUT)
+	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) GOARM=$(GOARM) go build $(BUILD_FLAGS) -tags '$(BUILD_TAGS)' -o $(OUTPUT)
 	cp ./localnode/config-template.toml $(BUILDDIR)/config-template.toml
 
 init:
 	cometbft init --home /tmp/cometbft-home
 
 start:
-	./test -cmt-home /tmp/cometbft-home
+	./test -cmt-home /tmp/cometbft-home -db-type $(DB_TYPE)
 
 build-docker-localnode:
 	docker buildx build --no-cache --platform linux/amd64 --tag cometbft/localnode localnode
 
-start-localnet: stop-localnet  build-docker-localnode
+start-localnet: stop-localnet build-docker-localnode
 	@if ! [ -f build/node0/config/genesis.json ]; then docker run --rm -v $(CURDIR)/build:/cometbft cometbft/cometbft:v1.0.0 testnet --config ./config-template.toml --v $(VALIDATORS_COUNT) --o . --populate-persistent-peers --starting-ip-address 192.167.10.2 ; fi
-	docker compose up -d
+	DB_TYPE=$(DB_TYPE) docker compose up -d
 
 stop-localnet:
 	docker compose down
@@ -96,8 +97,11 @@ stop-localnet:
 clean:
 	rm -rf build
 
-build-linux:
-	GOOS=$(GOOS) GOARCH=$(GOARCH) GOARM=$(GOARM) $(MAKE) build
-
 apply-latency:
 	./latency.sh $(VALIDATORS_COUNT)
+
+build-tigerbeetle: clean
+	go mod tidy
+	mkdir -p build
+	GOOS=$(GOOS) GOARCH=$(GOARCH) GOARM=$(GOARM) CC=$(MUSLDIR)/bin/musl-gcc go build --ldflags '-linkmode external -extldflags "-static"' -tags 'tigerbeetle' -o $(OUTPUT)
+	cp ./localnode/config-template.toml $(BUILDDIR)/config-template.toml

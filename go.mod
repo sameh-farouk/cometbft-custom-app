@@ -5,9 +5,11 @@ go 1.23.5
 toolchain go1.23.7
 
 require (
+	github.com/cockroachdb/pebble v1.1.4
 	github.com/cometbft/cometbft v1.0.1
 	github.com/dgraph-io/badger/v4 v4.5.1
 	github.com/spf13/viper v1.19.0
+	github.com/tigerbeetle/tigerbeetle-go v0.16.32
 )
 
 require (
@@ -17,7 +19,6 @@ require (
 	github.com/cockroachdb/errors v1.11.3 // indirect
 	github.com/cockroachdb/fifo v0.0.0-20240606204812-0bbfbd93a7ce // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
-	github.com/cockroachdb/pebble v1.1.2 // indirect
 	github.com/cockroachdb/redact v1.1.5 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
 	github.com/cometbft/cometbft-db v1.0.1 // indirect

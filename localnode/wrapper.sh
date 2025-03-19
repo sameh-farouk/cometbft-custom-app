@@ -9,6 +9,7 @@ set -x
 BINARY=/cometbft/${BINARY:-cometbft}
 ID=${ID:-0}
 LOG=${LOG:-cometbft.log}
+DB_TYPE=${DB_TYPE:-pebble}
 
 ##
 ## Assert linux binary
@@ -32,9 +33,9 @@ export CMTHOME="/cometbft/node${ID}"
 chmod 777 -R /cometbft
 
 if [ -d "`dirname ${CMTHOME}/${LOG}`" ]; then
-  "$BINARY" -cmt-home ${CMTHOME} "$@" | tee "${CMTHOME}/${LOG}"
+  "$BINARY" -cmt-home ${CMTHOME} -db-type ${DB_TYPE} "$@" | tee "${CMTHOME}/${LOG}"
 else
-  "$BINARY" "$@"
+  "$BINARY" -db-type ${DB_TYPE} "$@"
 fi
 
 chmod 777 -R /cometbft

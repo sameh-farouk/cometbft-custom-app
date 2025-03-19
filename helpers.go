@@ -62,14 +62,12 @@ var balanceMap = map[string]uint64{
 }
 
 func (app *KVStoreApplication) isValid(tx []byte) uint32 {
-
 	var transaction Transaction
 	if err := transaction.FromBytes(tx); err != nil {
 		return 2
 	}
 
 	for _, transfer := range transaction.Transfers {
-
 		if _, ok := keyMap[transfer.Sender]; !ok {
 			return 3
 		}
