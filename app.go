@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"strconv"
 
@@ -68,7 +69,7 @@ func (app *KVStoreApplication) FinalizeBlock(_ context.Context, req *abcitypes.F
 
 	for i, tx := range req.Txs {
 		if code := app.isValid(tx); code != 0 {
-			log.Printf("Error: invalid transaction index %v", i)
+			fmt.Printf("Error: invalid transaction index %v", i)
 			txs[i] = &abcitypes.ExecTxResult{Code: code}
 		} else {
 			var transaction Transaction
@@ -77,7 +78,7 @@ func (app *KVStoreApplication) FinalizeBlock(_ context.Context, req *abcitypes.F
 			}
 			for _, transfer := range transaction.Transfers {
 				src, dst, amount := transfer.Sender, transfer.Dest, transfer.Amount
-				log.Printf("Adding key %s with value %s", src, dst)
+				fmt.Printf("Adding key %s with value %s", src, dst)
 
 				srcValue, dstValue := balanceMap[src], balanceMap[dst]
 
@@ -97,7 +98,7 @@ func (app *KVStoreApplication) FinalizeBlock(_ context.Context, req *abcitypes.F
 				}
 				balanceMap[string(src)] = srcValue
 				balanceMap[string(dst)] = dstValue
-				log.Printf("Successfully added key %s with value %s", src, dst)
+				fmt.Printf("Successfully added key %s with value %s", src, dst)
 
 				// Add an event for the transaction execution.
 				// Multiple events can be emitted for a transaction, but we are adding only one event

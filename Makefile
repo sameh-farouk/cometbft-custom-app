@@ -3,7 +3,7 @@ PACKAGES=$(shell go list ./...)
 BUILDDIR?=$(CURDIR)/build
 OUTPUT?=$(BUILDDIR)/cometbft
 VALIDATORS_COUNT?=4
-DB_TYPE?=badger
+DB_TYPE?=pebble
 
 HTTPS_GIT := https://github.com/cometbft/cometbft.git
 CGO_ENABLED ?= 0
