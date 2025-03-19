@@ -73,6 +73,7 @@ services:
     cap_add:
       - NET_ADMIN
 
+    # add more nodes here if needed
 networks:
   localnet:
     driver: bridge
